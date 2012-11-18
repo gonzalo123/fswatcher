@@ -1,5 +1,7 @@
 Filesystem watcher with PHP
 
+[![Build Status](https://secure.travis-ci.org/gonzalo123/fswatcher.png?branch=master)](https://travis-ci.org/gonzalo123/fswatcher)
+
 Actualy only works with Linux. Uses inotifywait to detect modifications and Événement to manage events
 
 One usage example:
