@@ -6,6 +6,7 @@
             "email":"gonzalo123@gmail.com"
         }
     ],
+    "license":"GPL",
     "require":{
         "symfony/process":"dev-master",
         "gonzalo123/sh":"dev-master",
