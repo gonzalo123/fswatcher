@@ -11,11 +11,11 @@ class Linux implements Iface
     private $emitter;
 
     /** @var null|Callable */
-    private $onSaveCallback = NULL;
+    private $onSaveCallback = null;
     /** @var null|Callable */
-    private $onCreateCallback = NULL;
+    private $onCreateCallback = null;
     /** @var null|Callable */
-    private $onDeleteCallback = NULL;
+    private $onDeleteCallback = null;
 
     private $extensions = array();
     private $callbacks = array();
@@ -26,11 +26,7 @@ class Linux implements Iface
     const ACTION_DELETE = 'delete';
     const ACTION_CREATE = 'create';
 
-    private $inotyfyAndActionDictionary = array(
-        'MOVED_TO' => self::ACTION_SAVE,
-        'DELETE'   => self::ACTION_DELETE,
-        'CREATE'   => self::ACTION_CREATE,
-    );
+    private $inotyfyAndActionDictionary = array();
 
 
     public function __construct($directory)
@@ -50,19 +46,31 @@ class Linux implements Iface
 
     public function onSave(\Closure $function)
     {
-        $this->callbacks[self::ACTION_SAVE] = $function;
+        $this->callbacks[self::ACTION_SAVE]['callback']  = $function;
+
+        $this->inotyfyAndActionDictionary['CLOSE_WRITE'] = self::ACTION_SAVE;
+        $this->inotyfyAndActionDictionary['MOVED_TO']    = self::ACTION_SAVE;
+        $this->inotyfyAndActionDictionary['MOVE']        = self::ACTION_SAVE;
+        $this->inotyfyAndActionDictionary['MODIFY']      = self::ACTION_SAVE;
+
         return $this;
     }
 
     public function onDelete(\Closure $function)
     {
-        $this->callbacks[self::ACTION_DELETE] = $function;
+        $this->callbacks[self::ACTION_DELETE]['callback'] = $function;
+
+        $this->inotyfyAndActionDictionary['DELETE'] = self::ACTION_DELETE;
+
         return $this;
     }
 
     public function onCreate(\Closure $function)
     {
-        $this->callbacks[self::ACTION_CREATE] = $function;
+        $this->callbacks[self::ACTION_CREATE]['callback'] = $function;
+
+        $this->inotyfyAndActionDictionary['CREATE'] = self::ACTION_CREATE;
+
         return $this;
     }
 
@@ -79,7 +87,12 @@ class Linux implements Iface
 
     private function soWatcher(\Closure $callback)
     {
-        $this->sh->inotifywait(sprintf(self::INOTIFY_PARAMS, implode(',', array_keys($this->callbacks)), $this->directory), $callback);
+        $this->sh->inotifywait(sprintf(self::INOTIFY_PARAMS, implode(',', $this->getEventsToInotify()), $this->directory), $callback);
+    }
+
+    private function getEventsToInotify()
+    {
+        return array_map('strtolower', array_keys($this->inotyfyAndActionDictionary));
     }
 
     private function registerOnOutput()
@@ -88,10 +101,10 @@ class Linux implements Iface
             foreach (explode("\n", trim($buffer)) as $line) {
                 list($path, $action, $file) = $data = explode(',', $line);
                 if ($this->isValidFileToWatch($file)) {
-
                     $callback = $this->getCallbackFromAction($action);
                     if (is_callable($callback)) {
                         call_user_func_array($callback, array($path . $file));
+                        break;
                     }
                 }
             }
@@ -100,11 +113,16 @@ class Linux implements Iface
 
     private function getCallbackFromAction($action)
     {
-        if (!isset($this->inotyfyAndActionDictionary[$action])) return NULL;
+        foreach (explode(",", str_replace('"', null, $action)) as $act) {
+            if (array_key_exists($act, $this->inotyfyAndActionDictionary)) {
+                $key = $this->inotyfyAndActionDictionary[$act];
+                if (array_key_exists($key, $this->callbacks)) {
+                    return $this->callbacks[$key]['callback'];
+                }
+            }
+        }
 
-        $callbackKey = $this->inotyfyAndActionDictionary[$action];
-
-        return $this->callbacks[$callbackKey];
+        return null;
     }
 
     private function isValidFileToWatch($file)
@@ -120,4 +138,5 @@ class Linux implements Iface
             }
         });
     }
+
 }
