@@ -1,14 +1,25 @@
 {
     "name":"gonzalo123/fswatcher",
+    "description":"PHP File System Watcher",
+
+    "type":"library",
+    "homepage":"https://github.com/gonzalo123/fswatcher",
+    "license":"MIT",
+
     "authors":[
         {
             "name":"Gonzalo Ayuso",
-            "email":"gonzalo123@gmail.com"
+            "email":"gonzalo123@gmail.com",
+            "homepage":"http://gonzalo123.com"
         }
     ],
-    "homepage": "http://gonzalo123.com",
-    "license":"GPL",
+
+    "support":{
+        "issues":"https://github.com/gonzalo123/fswatcher/issues"
+    },
+
     "require":{
+        "php":">=5.4.0",
         "symfony/process":"dev-master",
         "gonzalo123/sh":"dev-master",
         "evenement/evenement":"2.0.*"
