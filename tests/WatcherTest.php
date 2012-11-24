@@ -40,9 +40,6 @@ class WatcherTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(4, $this->counterOnSave);
         $this->emmit('./ XXX,MODIFY file.php');
         $this->assertEquals(5, $this->counterOnSave);
-
-        $this->emmit("./ XXX file.php");
-        $this->assertEquals(5, $this->counterOnSave);
     }
 
     public function testOnSaveNonPhpFile()
