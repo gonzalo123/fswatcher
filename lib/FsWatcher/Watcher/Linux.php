@@ -10,17 +10,10 @@ class Linux implements Iface
     private $directory;
     private $emitter;
 
-    /** @var null|Callable */
-    private $onSaveCallback = null;
-    /** @var null|Callable */
-    private $onCreateCallback = null;
-    /** @var null|Callable */
-    private $onDeleteCallback = null;
-
     private $extensions = array();
-    private $callbacks = array();
+    private $callbacks  = array();
 
-    const INOTIFY_PARAMS = "-c -m -r -q -e %s %s";
+    const INOTIFY_PARAMS = "-m -r -q -e %s %s";
 
     const ACTION_SAVE   = 'move';
     const ACTION_DELETE = 'delete';
@@ -29,11 +22,10 @@ class Linux implements Iface
     private $inotyfyAndActionDictionary = array();
 
 
-    public function __construct($directory)
+    public function __construct(Sh $sh, EventEmitter $emitter)
     {
-        $this->sh        = new Sh();
-        $this->emitter   = new EventEmitter();
-        $this->directory = $directory;
+        $this->sh      = $sh;
+        $this->emitter = $emitter;
 
         $this->registerOnOutput();
         $this->registerOnError();
@@ -46,7 +38,7 @@ class Linux implements Iface
 
     public function onSave(\Closure $function)
     {
-        $this->callbacks[self::ACTION_SAVE]['callback']  = $function;
+        $this->callbacks[self::ACTION_SAVE]['callback'] = $function;
 
         $this->inotyfyAndActionDictionary['CLOSE_WRITE'] = self::ACTION_SAVE;
         $this->inotyfyAndActionDictionary['MOVED_TO']    = self::ACTION_SAVE;
@@ -77,17 +69,21 @@ class Linux implements Iface
     public function start()
     {
         $this->soWatcher(function ($buffer, $type) {
-            if ('err' === $type) {
-                $this->emitter->emit('error', array($buffer));
-            } else {
-                $this->emitter->emit('output', array($buffer));
+                if ('err' === $type) {
+                    $this->emitter->emit('error', array($buffer));
+                } else {
+                    $this->emitter->emit('output', array($buffer));
+                }
             }
-        });
+        );
     }
 
     private function soWatcher(\Closure $callback)
     {
-        $this->sh->inotifywait(sprintf(self::INOTIFY_PARAMS, implode(',', $this->getEventsToInotify()), $this->directory), $callback);
+        $this->sh->inotifywait(
+            sprintf(self::INOTIFY_PARAMS, implode(',', $this->getEventsToInotify()), $this->directory),
+            $callback
+        );
     }
 
     private function getEventsToInotify()
@@ -97,18 +93,19 @@ class Linux implements Iface
 
     private function registerOnOutput()
     {
-        $this->emitter->on('output', function ($buffer) {
-            foreach (explode("\n", trim($buffer)) as $line) {
-                list($path, $action, $file) = $data = explode(',', $line);
-                if ($this->isValidFileToWatch($file)) {
-                    $callback = $this->getCallbackFromAction($action);
-                    if (is_callable($callback)) {
-                        call_user_func_array($callback, array($path . $file));
-                        break;
+        $this->emitter->on( 'output', function ($buffer) {
+                foreach (explode("\n", trim($buffer)) as $line) {
+                    list($path, $action, $file) = explode(' ', $line, 3);
+                    if ($this->isValidFileToWatch($file)) {
+                        $callback = $this->getCallbackFromAction($action);
+                        if (is_callable($callback)) {
+                            call_user_func_array($callback, array($path . $file));
+                            break;
+                        }
                     }
                 }
             }
-        });
+        );
     }
 
     private function getCallbackFromAction($action)
@@ -133,10 +130,15 @@ class Linux implements Iface
     private function registerOnError()
     {
         $this->emitter->on('error', function ($buffer) {
-            foreach (explode("\n", trim($buffer)) as $line) {
-                echo "err: " . $line . "\n";
+                foreach (explode("\n", trim($buffer)) as $line) {
+                    echo "err: " . $line . "\n";
+                }
             }
-        });
+        );
     }
 
+    public function setDirectory($directory)
+    {
+        $this->directory = $directory;
+    }
 }

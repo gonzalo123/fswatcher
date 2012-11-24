@@ -1,52 +1,94 @@
 <?php
 
-use FsWatcher\Watcher;
+use FsWatcher\Watcher\Linux,
+    Sh\Sh;
 
 class WatcherTest extends \PHPUnit_Framework_TestCase
 {
-    private $watcher;
-    private $onSaveCounter = 0;
-    private $onDeleteCounter = 0;
-    private $onCreateCounter = 0;
+    private $counterOnSave = 0;
+    private $counterOnDelete = 0;
+    private $counterOnCreate = 0;
+    private $emmiter;
 
     public function setUp()
     {
-        $osWatcher = $this->getMockBuilder('FsWatcher\Watcher\Iface')
-            ->disableOriginalConstructor()
-            ->getMock();
-        $osWatcher->expects($this->any())->method('registerExtensionToWatch')->will($this->returnSelf());
-        $osWatcher->expects($this->any())->method('onSave')->will($this->returnCallback(function () {
-            $this->onSaveCounter++;
-        }));
-        $osWatcher->expects($this->any())->method('onDelete')->will($this->returnCallback(function () {
-            $this->onDeleteCounter++;
-        }));
-        $osWatcher->expects($this->any())->method('onCreate')->will($this->returnCallback(function () {
-            $this->onCreateCounter++;
-        }));
+        $this->emmiter = new Evenement\EventEmitter();
+        $watcher = new Linux($this->getMock('Sh\Sh'), $this->emmiter);
+        $watcher->registerExtensionToWatch('php');
 
-        $this->watcher = new Watcher($osWatcher);
-        $this->watcher->registerExtensionToWatch('php');
+        $watcher->onSave(function () {
+                $this->counterOnSave++;
+            });
+        $watcher->onCreate(function () {
+                $this->counterOnCreate++;
+            });
+        $watcher->onDelete(function () {
+                $this->counterOnDelete++;
+            });
     }
 
-    public function testCallOnSave()
+    public function testOnSave()
     {
-        $this->assertEquals(0, $this->onSaveCounter);
-        $this->watcher->onSave(function () {});
-        $this->assertEquals(1, $this->onSaveCounter);
+        $this->assertEquals(0, $this->counterOnSave);
+        $this->emmit("./ MOVED_TO file.php");
+        $this->assertEquals(1, $this->counterOnSave);
+        $this->emmit("./ CLOSE_WRITE file.php");
+        $this->assertEquals(2, $this->counterOnSave);
+        $this->emmit("./ MOVE file.php");
+        $this->assertEquals(3, $this->counterOnSave);
+        $this->emmit("./ MODIFY file.php");
+        $this->assertEquals(4, $this->counterOnSave);
+        $this->emmit('./ XXX,MODIFY file.php');
+        $this->assertEquals(5, $this->counterOnSave);
+
+        $this->emmit("./ XXX file.php");
+        $this->assertEquals(5, $this->counterOnSave);
     }
 
-    public function testCallOnDelete()
+    public function testOnSaveNonPhpFile()
     {
-        $this->assertEquals(0, $this->onDeleteCounter);
-        $this->watcher->onDelete(function () {});
-        $this->assertEquals(1, $this->onDeleteCounter);
+        $this->assertEquals(0, $this->counterOnSave);
+        $this->emmit("./ MOVED_TO file.json");
+        $this->assertEquals(0, $this->counterOnSave);
     }
 
-    public function testCallOnCreate()
+    public function testOnSaveFileNamesWithSpaces()
     {
-        $this->assertEquals(0, $this->onCreateCounter);
-        $this->watcher->onCreate(function () {});
-        $this->assertEquals(1, $this->onCreateCounter);
+        $this->assertEquals(0, $this->counterOnSave);
+        $this->emmit("./ MOVED_TO file with spaces.php");
+        $this->assertEquals(1, $this->counterOnSave);
+    }
+
+    public function testOnSaveWithMoreThanOneActionPerLine()
+    {
+        $this->assertEquals(0, $this->counterOnSave);
+        $this->emmit("./ XXX,MOVED_TO file.php");
+        $this->assertEquals(1, $this->counterOnSave);
+    }
+
+    public function testOnSaveNonSaveActions()
+    {
+        $this->assertEquals(0, $this->counterOnSave);
+        $this->emmit("./ CREATE file.php");
+        $this->assertEquals(0, $this->counterOnSave);
+    }
+
+    public function testOnDelete()
+    {
+        $this->assertEquals(0, $this->counterOnDelete);
+        $this->emmit("./ DELETE Linux file.php");
+        $this->assertEquals(1, $this->counterOnDelete);
+    }
+
+    public function testOnCreate()
+    {
+        $this->assertEquals(0, $this->counterOnCreate);
+        $this->emmit("./ CREATE Linux file.php");
+        $this->assertEquals(1, $this->counterOnCreate);
+    }
+
+    private function emmit($buffer)
+    {
+        $this->emmiter->emit('output', array($buffer));
     }
 }
