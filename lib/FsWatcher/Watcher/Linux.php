@@ -3,7 +3,7 @@
 namespace FsWatcher\Watcher;
 
 use Evenement\EventEmitter,
-    Sh\Sh;
+        Sh\Sh;
 
 class Linux implements Iface
 {
@@ -11,7 +11,7 @@ class Linux implements Iface
     private $emitter;
 
     private $extensions = array();
-    private $callbacks  = array();
+    private $callbacks = array();
 
     const INOTIFY_PARAMS = "-m -r -q -e %s %s";
 
@@ -93,7 +93,7 @@ class Linux implements Iface
 
     private function registerOnOutput()
     {
-        $this->emitter->on( 'output', function ($buffer) {
+        $this->emitter->on('output', function ($buffer) {
                 foreach (explode("\n", trim($buffer)) as $line) {
                     list($path, $action, $file) = explode(' ', $line, 3);
                     if ($this->isValidFileToWatch($file)) {
